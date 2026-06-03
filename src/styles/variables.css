@@ -1,0 +1,49 @@
+:root {
+  /* Cozy Pastel Palette */
+  --bg-cozy: #FAF8F5; /* Warm Oatmeal */
+  --bg-card: #FFFFFF;
+  --text-primary: #3E3835; /* Charcoal coffee */
+  --text-secondary: #7A726E;
+  --text-muted: #AFA6A1;
+  
+  --primary: #FFAC99; /* Cozy Peach Orange */
+  --primary-light: #FFEAE5;
+  --primary-dark: #E68D78;
+  
+  --secondary: #D7CDFC; /* Soft Lavender Purple */
+  --secondary-light: #F1EDFF;
+  --secondary-dark: #B5A5F5;
+  
+  --accent: #A4C3A2; /* Matcha Green */
+  --accent-light: #EBF3EA;
+  --accent-dark: #81A87F;
+
+  --love: #FF9B9B; /* Sweet Heart Pink */
+  --love-light: #FFF0F0;
+  
+  --gold: #FFD25A; /* Gold Badge Star */
+
+  /* Semantic Category Colors */
+  --color-family: #FFC0B3;      /* 따뜻한 연분홍 */
+  --color-friend: #BCE2D3;      /* 싱그러운 민트 */
+  --color-lover: #F9C3E5;       /* 사랑스러운 로즈 */
+  --color-acquaintance: #CDE3FC; /* 단정한 하늘 */
+
+  /* Borders & Shadows */
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  --radius-round: 50%;
+  
+  --shadow-soft: 0 4px 20px rgba(62, 56, 53, 0.05);
+  --shadow-cozy: 0 10px 30px rgba(62, 56, 53, 0.08);
+  --shadow-input: 0 2px 8px rgba(62, 56, 53, 0.04);
+  
+  /* Fonts */
+  --font-family: 'Outfit', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+  
+  /* Transitions */
+  --transition-cozy: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
