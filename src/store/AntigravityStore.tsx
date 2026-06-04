@@ -69,6 +69,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     equippedSkin: null,
     dailyAdChargeCount: 0,
     dailyQuestRefreshCount: 0,
+    dailyFullRefreshCount: 0,
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -155,6 +156,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       equippedSkin: null,
       dailyAdChargeCount: 0,
       dailyQuestRefreshCount: 0,
+      dailyFullRefreshCount: 0,
     });
   };
 
@@ -180,6 +182,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       equippedSkin: null,
       dailyAdChargeCount: 0,
       dailyQuestRefreshCount: 0,
+      dailyFullRefreshCount: 0,
     };
 
     localStorage.setItem(ACTIVE_SESSION_KEY, user.id);
@@ -250,7 +253,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       quests: newQuests,
       points: prevState.points + baseDailyReward,
       dailyAdChargeCount: 0,
-      dailyQuestRefreshCount: 0,
+      dailyQuestRefreshCount: 0,  // 낱개 새로고침 카운터 초기화
+      dailyFullRefreshCount: 0,   // 전체 새로고침 카운터 초기화
       // 날짜가 넘어갔으므로 마지막 활성화 날짜 리셋 혹은 갱신 가능성 열어두기
     };
   };
@@ -525,30 +529,51 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const watchAdForRefresh = async (questId?: string): Promise<{ success: boolean; count: number }> => {
     let result = { success: false, count: 0 };
     let canRefresh = false;
-    
-    setState(prev => {
-      const currentCount = prev.dailyQuestRefreshCount || 0;
-      if (currentCount >= 3) {
-        result = { success: false, count: currentCount };
-        return prev;
-      }
-      canRefresh = true;
-      const newCount = currentCount + 1;
-      result = { success: true, count: newCount };
-      return {
-        ...prev,
-        points: prev.points + 2,
-        dailyQuestRefreshCount: newCount
-      };
-    });
 
-    if (canRefresh) {
-      if (questId) {
+    if (questId) {
+      // ── 낱개 퀘스트 새로고침: 하루 최대 3회, +2 포인트 ──
+      setState(prev => {
+        const currentCount = prev.dailyQuestRefreshCount || 0;
+        if (currentCount >= 3) {
+          result = { success: false, count: currentCount };
+          return prev;
+        }
+        canRefresh = true;
+        const newCount = currentCount + 1;
+        result = { success: true, count: newCount };
+        return {
+          ...prev,
+          points: prev.points + 2,
+          dailyQuestRefreshCount: newCount
+        };
+      });
+
+      if (canRefresh) {
         await refreshQuest(questId);
-      } else {
+      }
+    } else {
+      // ── 전체 퀘스트 새로고침: 하루 최대 2회, +5 포인트 ──
+      setState(prev => {
+        const currentCount = prev.dailyFullRefreshCount || 0;
+        if (currentCount >= 2) {
+          result = { success: false, count: currentCount };
+          return prev;
+        }
+        canRefresh = true;
+        const newCount = currentCount + 1;
+        result = { success: true, count: newCount };
+        return {
+          ...prev,
+          points: prev.points + 5,
+          dailyFullRefreshCount: newCount
+        };
+      });
+
+      if (canRefresh) {
         await generateNewQuests();
       }
     }
+
     return result;
   };
 

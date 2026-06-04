@@ -84,8 +84,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
 
   // 전체 새로고침 클릭 -> 광고 프롬프트 표시
   const handleRefreshAllClick = () => {
-    if ((state.dailyQuestRefreshCount || 0) >= 3) {
-      showToast("🚫 오늘의 새로고침 광고 제한(3회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
+    if ((state.dailyFullRefreshCount || 0) >= 2) {
+      showToast("🚫 오늘의 전체 새로고침 광고 제한(2회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
       return;
     }
     setPendingRefreshAction('all');
@@ -102,18 +102,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
       const res = await watchAdForRefresh(pendingQuestId);
       setRefreshingQuestId(null);
       if (res.success) {
-        showToast(`✨ 광고 시청 보상 +2xp 및 새로운 안부 추천 완료! (오늘 남은 횟수: ${3 - res.count}회)`);
+        showToast(`✨ 광고 시청 보상 +2pt 적립 & 새로운 안부 추천 완료! (오늘 낱개 남은 횟수: ${3 - res.count}회)`);
       } else {
-        showToast("🚫 새로고침 제한 횟수를 초과했습니다.");
+        showToast("🚫 낱개 새로고침 제한(하루 3회)을 초과했습니다.");
       }
     } else if (pendingRefreshAction === 'all') {
       setIsRefreshingAll(true);
       const res = await watchAdForRefresh();
       setIsRefreshingAll(false);
       if (res.success) {
-        showToast(`☀️ 광고 시청 보상 +2xp 및 오늘의 모든 안부 갱신 완료! (오늘 남은 횟수: ${3 - res.count}회)`);
+        showToast(`☀️ 광고 시청 보상 +5pt 적립 & 오늘의 모든 안부 갱신 완료! (오늘 전체 남은 횟수: ${2 - res.count}회)`);
       } else {
-        showToast("🚫 새로고침 제한 횟수를 초과했습니다.");
+        showToast("🚫 전체 새로고침 제한(하루 2회)을 초과했습니다.");
       }
     }
 
@@ -241,11 +241,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
       {showAdPrompt && (
         <div className="modal-overlay" style={{ zIndex: 1000 }}>
           <div className="modal-content" style={{ borderRadius: '28px', maxWidth: '340px', margin: 'auto', padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎬</div>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>새로운 퀘스트 불러오기</h3>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+              {pendingRefreshAction === 'all' ? '🌟' : '🎬'}
+            </div>
+            <h3 style={{ fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>
+              {pendingRefreshAction === 'all' ? '오늘의 안부 전체 새로 받기' : '새로운 퀘스트 불러오기'}
+            </h3>
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
               후원사 광고를 잠시 시청하시겠습니까?<br />
-              시청 완료 시 퀘스트가 갱신되고 보상으로 <strong>+2xp</strong>가 적립됩니다! (오늘 남은 횟수: {3 - (state.dailyQuestRefreshCount || 0)}회)
+              {pendingRefreshAction === 'all' ? (
+                <>시청 완료 시 퀘스트 판이 전부 갱신되고 보상으로 <strong>+5pt</strong>가 적립됩니다! (오늘 남은 횟수: {2 - (state.dailyFullRefreshCount || 0)}회)</>
+              ) : (
+                <>시청 완료 시 퀘스트가 갱신되고 보상으로 <strong>+2pt</strong>가 적립됩니다! (오늘 남은 횟수: {3 - (state.dailyQuestRefreshCount || 0)}회)</>
+              )}
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
