@@ -10,7 +10,7 @@ interface LetterEditorProps {
 }
 
 export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClose, onLetterSent }) => {
-  const { state, completeQuest, addPoints } = useAntigravity();
+  const { state, completeQuest } = useAntigravity();
   const [selectedRelationshipId, setSelectedRelationshipId] = useState<string>(
     state.relationships[0]?.id || ''
   );
@@ -110,9 +110,6 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
 
     // AntigravityStore의 completeQuest를 호출하여 히스토리 추가, 포인트 지급, 스트릭 갱신 처리
     completeQuest(targetQuestId, 'custom', emotion, letterText);
-    
-    // 추가 포인트 지급 (직접 쓴 편지 정성 보너스 +50xp)
-    addPoints(50);
 
     setShowEmotionSelect(false);
     setShowShareModal(true);
@@ -338,7 +335,7 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
             </h3>
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '16px' }}>
               작성하신 정성스러운 안부와 예쁜 스킨이 소중한 히스토리 기록에 영구 보관되었습니다.<br />
-              <strong>보상: +150xp 획득! 🌟</strong>
+              <strong>보상: +15xp 획득! 🌟</strong>
             </p>
 
             {/* 가상 모바일 공유 목업 영역 */}

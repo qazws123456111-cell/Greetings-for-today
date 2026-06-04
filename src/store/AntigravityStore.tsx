@@ -19,6 +19,8 @@ interface AntigravityContextType {
   toggleEquipItem: (itemId: string) => void;
   equipSkin: (skinId: string | null) => void;
   advanceDayForDemo: () => void; // 데모를 위한 1일 강제 시간 흐름 시뮬레이션
+  watchAdForPoints: () => { success: boolean; count: number };
+  watchAdForRefresh: (questId?: string) => Promise<{ success: boolean; count: number }>;
 }
 
 const AntigravityContext = createContext<AntigravityContextType | undefined>(undefined);
@@ -26,20 +28,20 @@ const AntigravityContext = createContext<AntigravityContextType | undefined>(und
 // 기본 리워드 상점 품목 (기프티콘 + 디지털 콘텐츠)
 const INITIAL_REWARDS: RewardItem[] = [
   // 1. 기프티콘 교환 상품
-  { id: 'r1', name: '따뜻한 아메리카노 기프티콘', price: 500, description: '소중한 이에게 또는 수고한 자신에게 선물하세요 ☕', icon: '☕', unlocked: false, unlockedAt: null, category: 'gifticon' },
-  { id: 'r2', name: '감동 가득 커스텀 편지 템플릿', price: 200, description: '평소 전하지 못한 더 깊은 마음을 전하는 템플릿 💌', icon: '💌', unlocked: false, unlockedAt: null, category: 'gifticon' },
-  { id: 'r3', name: '부모님 맞춤 효도 안마 쿠폰', price: 300, description: '부모님의 피로를 싹 날려줄 깜짝 실물 쿠폰 🎫', icon: '🎫', unlocked: false, unlockedAt: null, category: 'gifticon' },
-  { id: 'r4', name: '달콤한 편의점 초콜릿 기프트', price: 150, description: '가벼운 안부와 함께 톡으로 쓱 건네기 좋은 선물 🍫', icon: '🍫', unlocked: false, unlockedAt: null, category: 'gifticon' },
+  { id: 'r1', name: '따뜻한 아메리카노 기프티콘', price: 1500, description: '소중한 이에게 또는 수고한 자신에게 선물하세요 ☕', icon: '☕', unlocked: false, unlockedAt: null, category: 'gifticon' },
+  { id: 'r2', name: '감동 가득 커스텀 편지 템플릿', price: 1500, description: '평소 전하지 못한 더 깊은 마음을 전하는 템플릿 💌', icon: '💌', unlocked: false, unlockedAt: null, category: 'gifticon' },
+  { id: 'r3', name: '부모님 맞춤 효도 안마 쿠폰', price: 1800, description: '부모님의 피로를 싹 날려줄 깜짝 실물 쿠폰 🎫', icon: '🎫', unlocked: false, unlockedAt: null, category: 'gifticon' },
+  { id: 'r4', name: '달콤한 편의점 초콜릿 기프트', price: 1500, description: '가벼운 안부와 함께 톡으로 쓱 건네기 좋은 선물 🍫', icon: '🍫', unlocked: false, unlockedAt: null, category: 'gifticon' },
 
   // 2. 캐릭터 꾸미기 상품
-  { id: 'item-scarf', name: '따뜻한 겨울 목도리', price: 100, description: '안부 요정 온이에게 둘러줄 수 있는 따스한 빨간 목도리 🧣', icon: '🧣', unlocked: false, unlockedAt: null, category: 'character' },
-  { id: 'item-crown', name: '안부 마스터 왕관', price: 150, description: '꾸준히 안부를 잘 전하는 마스터를 위한 황금 왕관 👑', icon: '👑', unlocked: false, unlockedAt: null, category: 'character' },
-  { id: 'item-glasses', name: '스마트 골드 안경', price: 80, description: '온이의 지적인 분위기와 다정한 눈빛을 연출하는 안경 👓', icon: '👓', unlocked: false, unlockedAt: null, category: 'character' },
+  { id: 'item-scarf', name: '따뜻한 겨울 목도리', price: 80, description: '안부 요정 온이에게 둘러줄 수 있는 따스한 빨간 목도리 🧣', icon: '🧣', unlocked: false, unlockedAt: null, category: 'character' },
+  { id: 'item-crown', name: '안부 마스터 왕관', price: 100, description: '꾸준히 안부를 잘 전하는 마스터를 위한 황금 왕관 👑', icon: '👑', unlocked: false, unlockedAt: null, category: 'character' },
+  { id: 'item-glasses', name: '스마트 골드 안경', price: 50, description: '온이의 지적인 분위기와 다정한 눈빛을 연출하는 안경 👓', icon: '👓', unlocked: false, unlockedAt: null, category: 'character' },
 
   // 3. 편지지 스킨 상품
-  { id: 'skin-night', name: '별이 빛나는 밤 편지지', price: 120, description: '잔잔한 밤하늘 감성을 담은 어두운 톤의 가상 메신저 스킨 🌌', icon: '🌌', unlocked: false, unlockedAt: null, category: 'skin' },
-  { id: 'skin-cherry', name: '벚꽃 가득 봄날 편지지', price: 120, description: '화사한 벚꽃 잎이 날리는 핑크빛 가상 메신저 스킨 🌸', icon: '🌸', unlocked: false, unlockedAt: null, category: 'skin' },
-  { id: 'skin-sunset', name: '노을빛 하늘 편지지', price: 100, description: '따스한 저녁 노을빛을 머금은 감성 메신저 스킨 🌇', icon: '🌇', unlocked: false, unlockedAt: null, category: 'skin' },
+  { id: 'skin-night', name: '별이 빛나는 밤 편지지', price: 150, description: '잔잔한 밤하늘 감성을 담은 어두운 톤의 가상 메신저 스킨 🌌', icon: '🌌', unlocked: false, unlockedAt: null, category: 'skin' },
+  { id: 'skin-cherry', name: '벚꽃 가득 봄날 편지지', price: 150, description: '화사한 벚꽃 잎이 날리는 핑크빛 가상 메신저 스킨 🌸', icon: '🌸', unlocked: false, unlockedAt: null, category: 'skin' },
+  { id: 'skin-sunset', name: '노을빛 하늘 편지지', price: 150, description: '따스한 저녁 노을빛을 머금은 감성 메신저 스킨 🌇', icon: '🌇', unlocked: false, unlockedAt: null, category: 'skin' },
 ];
 
 // 초기 관계 Mock 데이터
@@ -65,6 +67,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     rewards: [],
     equippedItems: [],
     equippedSkin: null,
+    dailyAdChargeCount: 0,
+    dailyQuestRefreshCount: 0,
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -149,6 +153,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       rewards: [],
       equippedItems: [],
       equippedSkin: null,
+      dailyAdChargeCount: 0,
+      dailyQuestRefreshCount: 0,
     });
   };
 
@@ -172,6 +178,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       rewards: INITIAL_REWARDS,
       equippedItems: [],
       equippedSkin: null,
+      dailyAdChargeCount: 0,
+      dailyQuestRefreshCount: 0,
     };
 
     localStorage.setItem(ACTIVE_SESSION_KEY, user.id);
@@ -241,6 +249,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       currentDay: computedDay,
       quests: newQuests,
       points: prevState.points + baseDailyReward,
+      dailyAdChargeCount: 0,
+      dailyQuestRefreshCount: 0,
       // 날짜가 넘어갔으므로 마지막 활성화 날짜 리셋 혹은 갱신 가능성 열어두기
     };
   };
@@ -363,6 +373,11 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
           : rel
       );
 
+      const baseQuestPoints = 10;
+      const directContactPoints = actionType === 'custom' ? 3 : 0;
+      const emotionPoints = 2;
+      const questPoints = baseQuestPoints + directContactPoints + emotionPoints;
+
       // 신규 히스토리 로그 생성 (편지 본문 및 스킨 적용 정보 저장)
       const newHistoryLog: HistoryLog = {
         id: `h-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -373,7 +388,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         message: letterContent || (actionType === 'template' ? targetQuest.title : `${targetQuest.relationshipName}님께 직접 따뜻한 마음 전송`),
         timestamp: new Date().toISOString(),
         emotion,
-        pointsEarned: 100,
+        pointsEarned: questPoints,
         letterContent: letterContent,
         skinId: prev.equippedSkin,
       };
@@ -391,12 +406,12 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       let bonusPoints = 0;
       if (newStreak === 3 && prev.streak !== 3) {
-        bonusPoints = 50;
+        bonusPoints = 15;
       } else if (newStreak === 7 && prev.streak !== 7) {
-        bonusPoints = 200;
+        bonusPoints = 50;
       }
 
-      const totalEarned = 100 + bonusPoints;
+      const totalEarned = questPoints + bonusPoints;
 
       return {
         ...prev,
@@ -488,6 +503,55 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setState(prev => ({ ...prev, points: prev.points + amount }));
   };
 
+  const watchAdForPoints = (): { success: boolean; count: number } => {
+    let result = { success: false, count: 0 };
+    setState(prev => {
+      const currentCount = prev.dailyAdChargeCount || 0;
+      if (currentCount >= 5) {
+        result = { success: false, count: currentCount };
+        return prev;
+      }
+      const newCount = currentCount + 1;
+      result = { success: true, count: newCount };
+      return {
+        ...prev,
+        points: prev.points + 5,
+        dailyAdChargeCount: newCount
+      };
+    });
+    return result;
+  };
+
+  const watchAdForRefresh = async (questId?: string): Promise<{ success: boolean; count: number }> => {
+    let result = { success: false, count: 0 };
+    let canRefresh = false;
+    
+    setState(prev => {
+      const currentCount = prev.dailyQuestRefreshCount || 0;
+      if (currentCount >= 3) {
+        result = { success: false, count: currentCount };
+        return prev;
+      }
+      canRefresh = true;
+      const newCount = currentCount + 1;
+      result = { success: true, count: newCount };
+      return {
+        ...prev,
+        points: prev.points + 2,
+        dailyQuestRefreshCount: newCount
+      };
+    });
+
+    if (canRefresh) {
+      if (questId) {
+        await refreshQuest(questId);
+      } else {
+        await generateNewQuests();
+      }
+    }
+    return result;
+  };
+
   const resetAllData = () => {
     if (state.currentUser) {
       localStorage.removeItem(`today_hello_state_${state.currentUser.id}`);
@@ -513,7 +577,9 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         resetAllData,
         toggleEquipItem,
         equipSkin,
-        advanceDayForDemo
+        advanceDayForDemo,
+        watchAdForPoints,
+        watchAdForRefresh
       }}
     >
       {children}

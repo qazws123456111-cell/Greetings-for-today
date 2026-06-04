@@ -76,6 +76,8 @@ export interface StoreState {
   rewards: RewardItem[];
   equippedItems: string[]; // IDs of equipped character items
   equippedSkin: string | null; // ID of equipped letter background skin
+  dailyAdChargeCount: number; // 일일 광고 충전 횟수 (최대 5회)
+  dailyQuestRefreshCount: number; // 일일 퀘스트 새로고침 횟수 (최대 3회)
 }
 
 

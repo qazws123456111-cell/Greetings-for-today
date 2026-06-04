@@ -10,7 +10,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
-  const { state, refreshQuest, generateNewQuests, addPoints } = useAntigravity();
+  const { state, watchAdForRefresh } = useAntigravity();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [refreshingQuestId, setRefreshingQuestId] = useState<string | null>(null);
@@ -73,6 +73,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
 
   // 개별 새로고침 클릭 -> 광고 프롬프트 표시
   const handleRefreshQuestClick = (questId: string) => {
+    if ((state.dailyQuestRefreshCount || 0) >= 3) {
+      showToast("🚫 오늘의 새로고침 광고 제한(3회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
+      return;
+    }
     setPendingRefreshAction('single');
     setPendingQuestId(questId);
     setShowAdPrompt(true);
@@ -80,6 +84,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
 
   // 전체 새로고침 클릭 -> 광고 프롬프트 표시
   const handleRefreshAllClick = () => {
+    if ((state.dailyQuestRefreshCount || 0) >= 3) {
+      showToast("🚫 오늘의 새로고침 광고 제한(3회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
+      return;
+    }
     setPendingRefreshAction('all');
     setPendingQuestId(null);
     setShowAdPrompt(true);
@@ -91,16 +99,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
 
     if (pendingRefreshAction === 'single' && pendingQuestId) {
       setRefreshingQuestId(pendingQuestId);
-      await refreshQuest(pendingQuestId);
+      const res = await watchAdForRefresh(pendingQuestId);
       setRefreshingQuestId(null);
-      addPoints(5);
-      showToast("✨ 광고 시청 보상 +5xp 및 새로운 안부 추천 완료!");
+      if (res.success) {
+        showToast(`✨ 광고 시청 보상 +2xp 및 새로운 안부 추천 완료! (오늘 남은 횟수: ${3 - res.count}회)`);
+      } else {
+        showToast("🚫 새로고침 제한 횟수를 초과했습니다.");
+      }
     } else if (pendingRefreshAction === 'all') {
       setIsRefreshingAll(true);
-      await generateNewQuests();
+      const res = await watchAdForRefresh();
       setIsRefreshingAll(false);
-      addPoints(15);
-      showToast("☀️ 광고 시청 보상 +15xp 및 오늘의 모든 안부 갱신 완료!");
+      if (res.success) {
+        showToast(`☀️ 광고 시청 보상 +2xp 및 오늘의 모든 안부 갱신 완료! (오늘 남은 횟수: ${3 - res.count}회)`);
+      } else {
+        showToast("🚫 새로고침 제한 횟수를 초과했습니다.");
+      }
     }
 
     setPendingRefreshAction(null);
@@ -231,7 +245,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
             <h3 style={{ fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>새로운 퀘스트 불러오기</h3>
             <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
               후원사 광고를 잠시 시청하시겠습니까?<br />
-              시청 완료 시 퀘스트가 갱신되고 보상으로 <strong>+{pendingRefreshAction === 'single' ? '5' : '15'}xp</strong>가 적립됩니다!
+              시청 완료 시 퀘스트가 갱신되고 보상으로 <strong>+2xp</strong>가 적립됩니다! (오늘 남은 횟수: {3 - (state.dailyQuestRefreshCount || 0)}회)
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button 
