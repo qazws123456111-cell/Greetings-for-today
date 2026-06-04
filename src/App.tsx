@@ -7,6 +7,9 @@ import { History } from './components/History';
 import { Store } from './components/Store';
 import { FeedbackModal } from './components/FeedbackModal';
 import { Confetti } from './components/Confetti';
+import { Auth } from './components/Auth';
+import { MyPage } from './components/MyPage';
+import { LetterEditor } from './components/LetterEditor';
 import type { Quest, EmotionType } from './types';
 import { Send, MessageCircle, X } from 'lucide-react';
 import './styles/main.css';
@@ -14,7 +17,7 @@ import './styles/components.css';
 
 function MainApp() {
   const { completeQuest, state } = useAntigravity();
-  const [activeTab, setActiveTab] = useState<'home' | 'relationships' | 'history' | 'shop'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'relationships' | 'history' | 'shop' | 'mypage'>('home');
   
   // 퀘스트 완료 관련 상태
   const [activeQuestAction, setActiveQuestAction] = useState<{ quest: Quest; actionType: 'template' | 'custom' } | null>(null);
@@ -30,6 +33,10 @@ function MainApp() {
 
   // 하트 폭죽 애니메이션 트리거
   const [confettiTrigger, setConfettiTrigger] = useState(false);
+
+  // 스킨 적용 편지 쓰기 상태
+  const [showLetterEditor, setShowLetterEditor] = useState(false);
+  const [writingLetterSkin, setWritingLetterSkin] = useState<string | null>(null);
 
   // 연락하기 버튼 클릭 시 가상 메신저 팝업 트리거
   const handleStartQuestAction = (quest: Quest, actionType: 'template' | 'custom') => {
@@ -93,6 +100,35 @@ function MainApp() {
     }, 2000); // 2초 후 캔버스 리셋
   };
 
+  // 1. 로그인 여부 가로채기
+  if (!state.currentUser) {
+    return <Auth />;
+  }
+
+  // 2. 스킨 적용 안부 편지 에디터 모드
+  if (showLetterEditor) {
+    return (
+      <div className="simulator-container">
+        <div className="simulator-notch" />
+        <div className="app-viewport" style={{ display: 'flex', flexDirection: 'column' }}>
+          <LetterEditor
+            initialSkinId={writingLetterSkin}
+            onClose={() => setShowLetterEditor(false)}
+            onLetterSent={() => {
+              setActiveTab('history');
+              setConfettiTrigger(true);
+              setTimeout(() => {
+                setConfettiTrigger(false);
+              }, 2000);
+            }}
+          />
+        </div>
+        <div className="simulator-home-bar" />
+      </div>
+    );
+  }
+
+
   return (
     <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
       {/* 탭 뷰 렌더링 */}
@@ -107,6 +143,12 @@ function MainApp() {
       )}
       {activeTab === 'shop' && (
         <Store />
+      )}
+      {activeTab === 'mypage' && (
+        <MyPage onWriteLetterWithSkin={(skinId) => {
+          setWritingLetterSkin(skinId);
+          setShowLetterEditor(true);
+        }} />
       )}
 
       {/* 캔버스 폭죽 효과 오버레이 */}

@@ -41,6 +41,8 @@ export interface HistoryLog {
   timestamp: string;
   emotion: EmotionType;
   pointsEarned: number;
+  letterContent?: string; // 작성한 편지 내용
+  skinId?: string | null; // 적용된 편지지 스킨 ID
 }
 
 export type RewardCategory = 'gifticon' | 'character' | 'skin';
@@ -56,7 +58,15 @@ export interface RewardItem {
   category: RewardCategory;
 }
 
+export interface User {
+  id: string;
+  name: string;
+  createdAt: string; // 가입 일시 타임스탬프
+}
+
 export interface StoreState {
+  currentUser: User | null; // 현재 로그인된 유저
+  currentDay: number; // 가입 후 경과한 일수 (1일차, 2일차...)
   relationships: Relationship[];
   quests: Quest[];
   history: HistoryLog[];
@@ -67,4 +77,5 @@ export interface StoreState {
   equippedItems: string[]; // IDs of equipped character items
   equippedSkin: string | null; // ID of equipped letter background skin
 }
+
 

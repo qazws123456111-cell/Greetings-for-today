@@ -1,13 +1,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Relationship, HistoryLog, RewardItem, StoreState, RelationshipType, ContactPeriod, EmotionType } from '../types';
+import type { Relationship, HistoryLog, RewardItem, StoreState, RelationshipType, ContactPeriod, EmotionType, User } from '../types';
 import { generateQuestForRelationship } from '../services/aiEngine';
 
 interface AntigravityContextType {
   state: StoreState;
+  signup: (id: string, password: string, name: string) => { success: boolean; message: string };
+  login: (id: string, password: string) => { success: boolean; message: string };
+  logout: () => void;
   addRelationship: (name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => void;
   updateRelationship: (id: string, name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => void;
   deleteRelationship: (id: string) => void;
-  completeQuest: (questId: string, actionType: 'template' | 'custom', emotion: EmotionType) => void;
+  completeQuest: (questId: string, actionType: 'template' | 'custom', emotion: EmotionType, letterContent?: string) => void;
   refreshQuest: (questId: string) => Promise<void>;
   generateNewQuests: () => Promise<void>;
   purchaseReward: (rewardId: string) => boolean;
@@ -15,6 +18,7 @@ interface AntigravityContextType {
   resetAllData: () => void;
   toggleEquipItem: (itemId: string) => void;
   equipSkin: (skinId: string | null) => void;
+  advanceDayForDemo: () => void; // 데모를 위한 1일 강제 시간 흐름 시뮬레이션
 }
 
 const AntigravityContext = createContext<AntigravityContextType | undefined>(undefined);
@@ -43,20 +47,15 @@ const INITIAL_RELATIONSHIPS: Relationship[] = [
   { id: 'rel-1', name: '엄마', type: 'family', closeness: 5, period: 'weekly', lastContacted: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() },
   { id: 'rel-2', name: '김민우 (친구)', type: 'friend', closeness: 4, period: 'biweekly', lastContacted: new Date(Date.now() - 12 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString() },
   { id: 'rel-3', name: '소희 (연인)', type: 'lover', closeness: 5, period: 'daily', lastContacted: new Date().toISOString(), createdAt: new Date(Date.now() - 100 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'rel-4', name: '팀장님 (지인)', type: 'acquaintance', closeness: 3, period: 'monthly', lastContacted: new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString() },
 ];
 
-// 초기 히스토리 기록 Mock 데이터
-const INITIAL_HISTORY: HistoryLog[] = [
-  { id: 'h-1', relationshipId: 'rel-3', relationshipName: '소희 (연인)', relationshipType: 'lover', actionType: 'custom', message: '본인의 진심을 담은 직접 연락', timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(), emotion: 'love', pointsEarned: 100 },
-  { id: 'h-2', relationshipId: 'rel-1', relationshipName: '엄마', relationshipType: 'family', actionType: 'template', message: '가족 단체방에 기분 좋은 아침 인사 남기기', timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), emotion: 'happy', pointsEarned: 100 },
-  { id: 'h-3', relationshipId: 'rel-2', relationshipName: '김민우 (친구)', relationshipType: 'friend', actionType: 'template', message: '오랜 친구에게 근황 묻는 메시지 보내기', timestamp: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(), emotion: 'neutral', pointsEarned: 100 },
-];
-
-const LOCAL_STORAGE_KEY = 'today_hello_state_v3';
+const USERS_LIST_KEY = 'today_hello_users_v3';
+const ACTIVE_SESSION_KEY = 'today_hello_active_session_v3';
 
 export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<StoreState>({
+    currentUser: null,
+    currentDay: 1,
     relationships: [],
     quests: [],
     history: [],
@@ -70,66 +69,235 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // 최초 로드 시 LocalStorage에서 데이터를 읽거나 초기 데이터 세팅
-  useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // 마이그레이션: 기존 저장된 리워드 상품 상태를 유지하며 신규 디지털 품목들을 병합
-        const mergedRewards = INITIAL_REWARDS.map(initialItem => {
-          const savedItem = parsed.rewards?.find((r: any) => r.id === initialItem.id);
-          return savedItem ? { ...initialItem, unlocked: savedItem.unlocked, unlockedAt: savedItem.unlockedAt } : initialItem;
-        });
+  // 로컬 가상 유저 DB 관리
+  const getUsersFromStorage = (): (User & { password?: string })[] => {
+    const saved = localStorage.getItem(USERS_LIST_KEY);
+    return saved ? JSON.parse(saved) : [];
+  };
 
-        setState({
-          relationships: parsed.relationships || [],
-          quests: parsed.quests || [],
-          history: parsed.history || [],
-          points: typeof parsed.points === 'number' ? parsed.points : 0,
-          streak: typeof parsed.streak === 'number' ? parsed.streak : 0,
-          lastActiveDate: parsed.lastActiveDate || '',
-          rewards: mergedRewards,
-          equippedItems: parsed.equippedItems || [],
-          equippedSkin: parsed.equippedSkin || null,
-        });
-      } catch (e) {
-        console.error("Failed to parse local storage state", e);
-        initializeDefaultState();
-      }
-    } else {
-      initializeDefaultState();
+  const saveUsersToStorage = (users: any[]) => {
+    localStorage.setItem(USERS_LIST_KEY, JSON.stringify(users));
+  };
+
+  // 가입일 기준 경과 일수 계산 (1일차, 2일차...)
+  const calculateDayDiff = (createdAtStr: string): number => {
+    const start = new Date(createdAtStr).getTime();
+    const now = new Date().getTime();
+    // 가입 당일은 1일차
+    const diffTime = now - start;
+    const diffDays = Math.floor(diffTime / (24 * 60 * 60 * 1000));
+    return diffDays + 1;
+  };
+
+  // 회원가입
+  const signup = (id: string, password: string, name: string) => {
+    const users = getUsersFromStorage();
+    if (users.some(u => u.id === id)) {
+      return { success: false, message: '이미 존재하는 아이디입니다.' };
     }
-    setIsLoaded(true);
-  }, []);
 
-  // 상태가 바뀔 때마다 LocalStorage에 저장
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
+    const newUser: User & { password?: string } = {
+      id,
+      name,
+      createdAt: new Date().toISOString(),
+      password, // 가상 DB에 간단히 저장
+    };
+
+    saveUsersToStorage([...users, newUser]);
+
+    // 해당 신규 유저를 위한 초기 데이터 구축 및 로그인
+    const initialUser: User = { id: newUser.id, name: newUser.name, createdAt: newUser.createdAt };
+    
+    // 비동기로 최초 퀘스트를 받아와서 상태 초기화
+    setupInitialStateForUser(initialUser);
+
+    return { success: true, message: '회원가입이 완료되었습니다!' };
+  };
+
+  // 로그인
+  const login = (id: string, password: string) => {
+    const users = getUsersFromStorage();
+    const foundUser = users.find(u => u.id === id && u.password === password);
+    if (!foundUser) {
+      return { success: false, message: '아이디 또는 비밀번호가 일치하지 않습니다.' };
     }
-  }, [state, isLoaded]);
 
-  const initializeDefaultState = async () => {
-    // 뼈대 관계에 근거하여 초기 퀘스트 3개 자동 생성
+    const activeUser: User = {
+      id: foundUser.id,
+      name: foundUser.name,
+      createdAt: foundUser.createdAt,
+    };
+
+    localStorage.setItem(ACTIVE_SESSION_KEY, activeUser.id);
+    loadUserState(activeUser);
+
+    return { success: true, message: '로그인에 성공했습니다!' };
+  };
+
+  // 로그아웃
+  const logout = () => {
+    localStorage.removeItem(ACTIVE_SESSION_KEY);
+    setState({
+      currentUser: null,
+      currentDay: 1,
+      relationships: [],
+      quests: [],
+      history: [],
+      points: 0,
+      streak: 0,
+      lastActiveDate: '',
+      rewards: [],
+      equippedItems: [],
+      equippedSkin: null,
+    });
+  };
+
+  // 유저별 초기 상태 생성 및 로드
+  const setupInitialStateForUser = async (user: User) => {
     const activeQuests = await Promise.all([
       generateQuestForRelationship(INITIAL_RELATIONSHIPS[0]), // 엄마
       generateQuestForRelationship(INITIAL_RELATIONSHIPS[1]), // 김민우
       generateQuestForRelationship(INITIAL_RELATIONSHIPS[2]), // 소희
     ]);
 
-    setState({
+    const initialUserState: StoreState = {
+      currentUser: user,
+      currentDay: 1,
       relationships: INITIAL_RELATIONSHIPS,
       quests: activeQuests,
-      history: INITIAL_HISTORY,
-      points: 250, // 초기 축하 보너스 포인트
-      streak: 3,   // 3일 연속 스트릭 상태로 시작하여 흥미 유발
-      lastActiveDate: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 어제 날짜
+      history: [],
+      points: 250, // 초기 가입 보너스
+      streak: 0,
+      lastActiveDate: '',
       rewards: INITIAL_REWARDS,
       equippedItems: [],
       equippedSkin: null,
+    };
+
+    localStorage.setItem(ACTIVE_SESSION_KEY, user.id);
+    localStorage.setItem(`today_hello_state_${user.id}`, JSON.stringify(initialUserState));
+    setState(initialUserState);
+  };
+
+  // 유저별 세이브 파일 로드 및 경과 일수 체크
+  const loadUserState = (user: User) => {
+    const savedState = localStorage.getItem(`today_hello_state_${user.id}`);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        
+        // 가입일 기반 일차 계산
+        const computedDay = calculateDayDiff(user.createdAt);
+        const prevDay = parsed.currentDay || 1;
+
+        let updatedState = {
+          ...parsed,
+          currentUser: user,
+          currentDay: computedDay
+        };
+
+        // 날짜가 넘어갔을 때 (일차 경과) 초기화 메커니즘 트리거
+        if (computedDay > prevDay) {
+          updatedState = triggerNewDayTransition(updatedState, computedDay);
+        }
+
+        setState(updatedState);
+      } catch (e) {
+        console.error("Failed to load user state", e);
+        setupInitialStateForUser(user);
+      }
+    } else {
+      setupInitialStateForUser(user);
+    }
+  };
+
+  // 새로운 일차 진입 시의 초기화 및 포인트 보상 지급 로직
+  const triggerNewDayTransition = (prevState: StoreState, computedDay: number): StoreState => {
+    // 1. 오늘의 퀘스트 완료 상태 리셋 및 신규 퀘스트 일괄 갱신
+    // 미완료 퀘스트는 skipped/expired 상태로 두거나, 그냥 아예 새로운 관계들로 퀘스트를 다시 생성합니다.
+    const activeRels = prevState.relationships;
+    let newQuests = prevState.quests;
+
+    if (activeRels.length > 0) {
+      // 새로운 퀘스트 생성 (동기 형태로 mock 템플릿 사용 또는 aiEngine 임시 호출)
+      // 비동기 처리가 필요하지만, UI 원활성을 위해 이전 퀘스트들을 pending으로 돌려놓거나
+      // 혹은 static하게 매핑해 줍니다. 여기서는 간단히 기존 퀘스트들의 완료 여부 초기화 및 templateMessage 재사용/status 리셋 처리.
+      newQuests = prevState.quests.map(q => ({
+        ...q,
+        status: 'pending',
+        completedAt: null,
+        emotion: null,
+        actionType: null,
+        id: `q-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // 새 ID 부여
+      }));
+    }
+
+    // 2. 일차 진입에 따른 보상 포인트 지급
+    // 새로운 날 출석(기본 포인트) +50xp 적립
+    const baseDailyReward = 50;
+
+    return {
+      ...prevState,
+      currentDay: computedDay,
+      quests: newQuests,
+      points: prevState.points + baseDailyReward,
+      // 날짜가 넘어갔으므로 마지막 활성화 날짜 리셋 혹은 갱신 가능성 열어두기
+    };
+  };
+
+  // 데모를 위한 날짜 강제 경과 함수 (회원가입 createdAt을 하루 과거로 끎)
+  const advanceDayForDemo = () => {
+    if (!state.currentUser) return;
+    
+    const userList = getUsersFromStorage();
+    const updatedUserList = userList.map(u => {
+      if (u.id === state.currentUser?.id) {
+        // createdAt을 24시간 이전으로 당김
+        const prevCreatedAt = new Date(new Date(u.createdAt).getTime() - 24 * 60 * 60 * 1000).toISOString();
+        return { ...u, createdAt: prevCreatedAt };
+      }
+      return u;
+    });
+
+    saveUsersToStorage(updatedUserList);
+
+    // 현재 메모리 상태도 동기화
+    const updatedUser: User = {
+      ...state.currentUser,
+      createdAt: new Date(new Date(state.currentUser.createdAt).getTime() - 24 * 60 * 60 * 1000).toISOString()
+    };
+
+    const nextDay = state.currentDay + 1;
+    
+    setState(prev => {
+      const nextState = triggerNewDayTransition(prev, nextDay);
+      return {
+        ...nextState,
+        currentUser: updatedUser,
+        currentDay: nextDay
+      };
     });
   };
+
+  // 최초 로드 시 세션 확인
+  useEffect(() => {
+    const activeUserId = localStorage.getItem(ACTIVE_SESSION_KEY);
+    if (activeUserId) {
+      const users = getUsersFromStorage();
+      const activeUser = users.find(u => u.id === activeUserId);
+      if (activeUser) {
+        loadUserState({ id: activeUser.id, name: activeUser.name, createdAt: activeUser.createdAt });
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // 로그인 상태에서 상태 변경 시 로컬 스토리지에 유저 데이터 자동 백업
+  useEffect(() => {
+    if (isLoaded && state.currentUser) {
+      localStorage.setItem(`today_hello_state_${state.currentUser.id}`, JSON.stringify(state));
+    }
+  }, [state, isLoaded]);
 
   // 관계 추가
   const addRelationship = (name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => {
@@ -143,7 +311,6 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       createdAt: new Date().toISOString()
     };
 
-    // 즉시 해당 관계에 대한 AI 안부 퀘스트 생성하여 추가
     generateQuestForRelationship(newRel).then((quest) => {
       setState(prev => ({
         ...prev,
@@ -163,7 +330,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }));
   };
 
-  // 관계 삭제 (연관된 퀘스트도 함께 정리)
+  // 관계 삭제
   const deleteRelationship = (id: string) => {
     setState(prev => ({
       ...prev,
@@ -172,12 +339,11 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }));
   };
 
-  // 퀘스트 완료 및 감정 기록 & 리워드 지급 (+100xp)
-  const completeQuest = (questId: string, actionType: 'template' | 'custom', emotion: EmotionType) => {
+  // 퀘스트 완료 및 히스토리 기록 (편지 작성 내용 및 스킨 ID 반영)
+  const completeQuest = (questId: string, actionType: 'template' | 'custom', emotion: EmotionType, letterContent?: string) => {
     const todayStr = new Date().toISOString().split('T')[0];
     
     setState(prev => {
-      // 대상 퀘스트 탐색
       const questIndex = prev.quests.findIndex(q => q.id === questId);
       if (questIndex === -1) return prev;
 
@@ -191,44 +357,43 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         actionType
       };
 
-      // 해당 관계의 '마지막 연락일' 업데이트
       const updatedRelationships = prev.relationships.map(rel => 
         rel.id === targetQuest.relationshipId 
           ? { ...rel, lastContacted: new Date().toISOString() } 
           : rel
       );
 
-      // 신규 타임라인 히스토리 로그 생성
+      // 신규 히스토리 로그 생성 (편지 본문 및 스킨 적용 정보 저장)
       const newHistoryLog: HistoryLog = {
         id: `h-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         relationshipId: targetQuest.relationshipId,
         relationshipName: targetQuest.relationshipName,
         relationshipType: targetQuest.relationshipType,
         actionType,
-        message: actionType === 'template' ? targetQuest.title : `${targetQuest.relationshipName}님께 직접 따뜻한 마음 전송`,
+        message: letterContent || (actionType === 'template' ? targetQuest.title : `${targetQuest.relationshipName}님께 직접 따뜻한 마음 전송`),
         timestamp: new Date().toISOString(),
         emotion,
-        pointsEarned: 100
+        pointsEarned: 100,
+        letterContent: letterContent,
+        skinId: prev.equippedSkin,
       };
 
-      // 스트릭 계산
       let newStreak = prev.streak;
       if (prev.lastActiveDate !== todayStr) {
         if (prev.lastActiveDate === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]) {
-          newStreak += 1; // 연속 일수 1일 증가
+          newStreak += 1;
         } else if (prev.lastActiveDate === '') {
-          newStreak = 1;  // 최초 완료
+          newStreak = 1;
         } else {
-          newStreak = 1;  // 스트릭이 끊겼던 경우 리셋 후 1일차 시작
+          newStreak = 1;
         }
       }
 
-      // 포인트 가산 (+100xp) + 보너스 스트릭 포인트 적립
       let bonusPoints = 0;
       if (newStreak === 3 && prev.streak !== 3) {
-        bonusPoints = 50; // 3일 연속 달성 보너스
+        bonusPoints = 50;
       } else if (newStreak === 7 && prev.streak !== 7) {
-        bonusPoints = 200; // 7일 연속 달성 보너스
+        bonusPoints = 200;
       }
 
       const totalEarned = 100 + bonusPoints;
@@ -245,7 +410,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     });
   };
 
-  // 단일 퀘스트 수동 새로고침 (AI 재분석)
+  // 단일 퀘스트 수동 새로고침
   const refreshQuest = async (questId: string) => {
     const targetQuest = state.quests.find(q => q.id === questId);
     if (!targetQuest) return;
@@ -260,12 +425,11 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }));
   };
 
-  // 모든 관계에 대해 '오늘의 퀘스트' 일괄 생성/갱신 (새로운 아침 퀘스트 시작)
+  // 퀘스트 일괄 생성/갱신
   const generateNewQuests = async () => {
     const activeRels = [...state.relationships];
     if (activeRels.length === 0) return;
 
-    // 모든 관계를 랜덤하게 셔플하여 최대 3개의 퀘스트 생성
     const shuffled = activeRels.sort(() => 0.5 - Math.random());
     const targetRels = shuffled.slice(0, Math.min(3, shuffled.length));
 
@@ -279,7 +443,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }));
   };
 
-  // 리워드 상점 구매 로직
+  // 상점 교환/구매
   const purchaseReward = (rewardId: string): boolean => {
     let success = false;
     setState(prev => {
@@ -300,7 +464,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return success;
   };
 
-  // 캐릭터 아이템 장착 토글
+  // 코디 장착/해제 토글
   const toggleEquipItem = (itemId: string) => {
     setState(prev => {
       const equippedItems = prev.equippedItems || [];
@@ -320,21 +484,24 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }));
   };
 
-  // 수동 포인트 가산 (디버깅 / 데모용)
   const addPoints = (amount: number) => {
     setState(prev => ({ ...prev, points: prev.points + amount }));
   };
 
-  // 초기화 (완전 리셋)
   const resetAllData = () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    initializeDefaultState();
+    if (state.currentUser) {
+      localStorage.removeItem(`today_hello_state_${state.currentUser.id}`);
+      setupInitialStateForUser(state.currentUser);
+    }
   };
 
   return (
     <AntigravityContext.Provider
       value={{
         state,
+        signup,
+        login,
+        logout,
         addRelationship,
         updateRelationship,
         deleteRelationship,
@@ -345,7 +512,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         addPoints,
         resetAllData,
         toggleEquipItem,
-        equipSkin
+        equipSkin,
+        advanceDayForDemo
       }}
     >
       {children}
