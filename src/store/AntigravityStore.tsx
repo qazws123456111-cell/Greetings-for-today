@@ -166,7 +166,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       relationships: INITIAL_RELATIONSHIPS,
       quests: activeQuests,
       history: [],
-      points: 250, // 초기 가입 보너스
+      points: 0, // 초기 가입 시 0포인트로 시작
       streak: 0,
       lastActiveDate: '',
       rewards: INITIAL_REWARDS,
