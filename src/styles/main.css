@@ -125,7 +125,7 @@ body {
 .app-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 70px; /* Space for the bottom navigation tab */
+  padding-bottom: 16px; /* 광고 배너와 탭바는 flex 분리, 본문만 약간의 여백 */
   position: relative;
 }
 

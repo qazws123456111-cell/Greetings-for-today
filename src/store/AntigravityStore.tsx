@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { Relationship, HistoryLog, RewardItem, StoreState, RelationshipType, ContactPeriod, EmotionType, User } from '../types';
+import type { Relationship, HistoryLog, RewardItem, StoreState, RelationshipType, ContactPeriod, EmotionType, User, CouponCode } from '../types';
 import { generateQuestForRelationship } from '../services/aiEngine';
 
 interface AntigravityContextType {
@@ -7,8 +7,8 @@ interface AntigravityContextType {
   signup: (id: string, password: string, name: string) => { success: boolean; message: string };
   login: (id: string, password: string) => { success: boolean; message: string };
   logout: () => void;
-  addRelationship: (name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => void;
-  updateRelationship: (id: string, name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => void;
+  addRelationship: (name: string, type: RelationshipType, period: ContactPeriod, closeness: number, contactPurpose?: string, lastMeetPeriod?: string) => void;
+  updateRelationship: (id: string, name: string, type: RelationshipType, period: ContactPeriod, closeness: number, contactPurpose?: string, lastMeetPeriod?: string) => void;
   deleteRelationship: (id: string) => void;
   completeQuest: (questId: string, actionType: 'template' | 'custom', emotion: EmotionType, letterContent?: string) => void;
   refreshQuest: (questId: string) => Promise<void>;
@@ -21,6 +21,7 @@ interface AntigravityContextType {
   advanceDayForDemo: () => void; // 데모를 위한 1일 강제 시간 흐름 시뮬레이션
   watchAdForPoints: () => { success: boolean; count: number };
   watchAdForRefresh: (questId?: string) => Promise<{ success: boolean; count: number }>;
+  registerCoupon: (code: string) => { success: boolean; message: string; coupon?: CouponCode };
 }
 
 const AntigravityContext = createContext<AntigravityContextType | undefined>(undefined);
@@ -70,6 +71,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     dailyAdChargeCount: 0,
     dailyQuestRefreshCount: 0,
     dailyFullRefreshCount: 0,
+    registeredCoupons: [],
   });
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -157,6 +159,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       dailyAdChargeCount: 0,
       dailyQuestRefreshCount: 0,
       dailyFullRefreshCount: 0,
+      registeredCoupons: [],
     });
   };
 
@@ -183,6 +186,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       dailyAdChargeCount: 0,
       dailyQuestRefreshCount: 0,
       dailyFullRefreshCount: 0,
+      registeredCoupons: [],
     };
 
     localStorage.setItem(ACTIVE_SESSION_KEY, user.id);
@@ -285,10 +289,14 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     
     setState(prev => {
       const nextState = triggerNewDayTransition(prev, nextDay);
+      // 🔑 스트릭 버그 수정: 가상 날짜 전환 시 lastActiveDate를 '어제' 날짜로 설정하여
+      // 다음 날 퀘스트 완료 시 '어제 연속' 조건이 올바르게 매칭되도록 보장.
+      const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       return {
         ...nextState,
         currentUser: updatedUser,
-        currentDay: nextDay
+        currentDay: nextDay,
+        lastActiveDate: yesterdayStr,  // 어제로 세팅 → 오늘 퀘스트 완료 시 streak +1
       };
     });
   };
@@ -314,7 +322,7 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [state, isLoaded]);
 
   // 관계 추가
-  const addRelationship = (name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => {
+  const addRelationship = (name: string, type: RelationshipType, period: ContactPeriod, closeness: number, contactPurpose?: string, lastMeetPeriod?: string) => {
     const newRel: Relationship = {
       id: `rel-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       name,
@@ -322,7 +330,9 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
       closeness,
       period,
       lastContacted: '',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      contactPurpose: contactPurpose as any,
+      lastMeetPeriod: lastMeetPeriod as any,
     };
 
     generateQuestForRelationship(newRel).then((quest) => {
@@ -335,11 +345,11 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   // 관계 수정
-  const updateRelationship = (id: string, name: string, type: RelationshipType, period: ContactPeriod, closeness: number) => {
+  const updateRelationship = (id: string, name: string, type: RelationshipType, period: ContactPeriod, closeness: number, contactPurpose?: string, lastMeetPeriod?: string) => {
     setState(prev => ({
       ...prev,
       relationships: prev.relationships.map(rel => 
-        rel.id === id ? { ...rel, name, type, period, closeness } : rel
+        rel.id === id ? { ...rel, name, type, period, closeness, contactPurpose: contactPurpose as any, lastMeetPeriod: lastMeetPeriod as any } : rel
       )
     }));
   };
@@ -397,22 +407,36 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         skinId: prev.equippedSkin,
       };
 
+      // 🔑 스트릭 버그 수정:
+      // 어제 날짜를 실제 Date.now() 기준으로 계산합니다.
+      // advanceDayForDemo가 lastActiveDate를 어제(실제 날짜 기준)로 설정하므로
+      // 오늘(실제 날짜) 퀘스트를 완료하면 lastActiveDate === 어제 조건이 올바르게 매칭됩니다.
+      const yesterdayStr = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
       let newStreak = prev.streak;
       if (prev.lastActiveDate !== todayStr) {
-        if (prev.lastActiveDate === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]) {
-          newStreak += 1;
+        if (prev.lastActiveDate === yesterdayStr) {
+          // 어제도 했으면 연속 스트릭 증가
+          newStreak = prev.streak + 1;
         } else if (prev.lastActiveDate === '') {
+          // 첫 번째 퀘스트 완료
           newStreak = 1;
         } else {
+          // 연속이 끊긴 경우 1로 리셋
           newStreak = 1;
         }
       }
+      // 이미 오늘 했으면 streak 유지 (중복 카운팅 방지)
 
       let bonusPoints = 0;
-      if (newStreak === 3 && prev.streak !== 3) {
+      if (newStreak === 3 && prev.streak < 3) {
         bonusPoints = 15;
-      } else if (newStreak === 7 && prev.streak !== 7) {
+      } else if (newStreak === 7 && prev.streak < 7) {
         bonusPoints = 50;
+      } else if (newStreak === 14 && prev.streak < 14) {
+        bonusPoints = 100;
+      } else if (newStreak === 30 && prev.streak < 30) {
+        bonusPoints = 300;
       }
 
       const totalEarned = questPoints + bonusPoints;
@@ -584,6 +608,53 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  // 🎟️ 선물 쿠폰 코드 등록
+  // 기프티콘 교환 후 발급된 특별 코드를 등록합니다.
+  const registerCoupon = (code: string): { success: boolean; message: string; coupon?: CouponCode } => {
+    if (!code.trim()) {
+      return { success: false, message: '쿠폰 코드를 입력해 주세요.' };
+    }
+
+    // 이미 등록된 코드 중복 확인
+    const already = (state.registeredCoupons || []).find(c => c.code.toUpperCase() === code.trim().toUpperCase());
+    if (already) {
+      return { success: false, message: '이미 등록된 쿠폰 코드입니다.' };
+    }
+
+    // 가상 코드 유효성 검증: HELLO로 시작하거나 OBNB로 시작하는 코드를 유효로 처리
+    const upperCode = code.trim().toUpperCase();
+    let label = '';
+    if (upperCode.startsWith('HELLO')) {
+      label = '☕ 따뜻한 아메리카노 교환권';
+    } else if (upperCode.startsWith('OBNB')) {
+      label = '💌 감동 편지 템플릿 이용권';
+    } else if (upperCode.startsWith('LOVE')) {
+      label = '🎫 특별 안마 쿠폰';
+    } else if (upperCode.startsWith('CHOCO')) {
+      label = '🍫 달콤한 초콜릿 기프트권';
+    } else if (upperCode.length >= 8) {
+      // 8자리 이상이면 일반 쿠폰으로 처리
+      label = '🎟️ 특별 선물 쿠폰';
+    } else {
+      return { success: false, message: '유효하지 않은 쿠폰 코드입니다. 코드를 다시 확인해 주세요.' };
+    }
+
+    const newCoupon: CouponCode = {
+      id: `coupon-${Date.now()}`,
+      code: upperCode,
+      label,
+      registeredAt: new Date().toISOString(),
+      isUsed: false,
+    };
+
+    setState(prev => ({
+      ...prev,
+      registeredCoupons: [...(prev.registeredCoupons || []), newCoupon],
+    }));
+
+    return { success: true, message: `${label}이(가) 성공적으로 등록되었습니다! 🎉`, coupon: newCoupon };
+  };
+
   return (
     <AntigravityContext.Provider
       value={{
@@ -604,7 +675,8 @@ export const AntigravityProvider: React.FC<{ children: React.ReactNode }> = ({ c
         equipSkin,
         advanceDayForDemo,
         watchAdForPoints,
-        watchAdForRefresh
+        watchAdForRefresh,
+        registerCoupon,
       }}
     >
       {children}

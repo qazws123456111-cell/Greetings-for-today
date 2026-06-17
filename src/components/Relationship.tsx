@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
-import type { Relationship as RelType, RelationshipType, ContactPeriod } from '../types';
+import type { Relationship as RelType, RelationshipType, ContactPeriod, ContactPurpose, LastMeetPeriod } from '../types';
 import { Plus, Edit3, Trash2, X, Heart, Star } from 'lucide-react';
 
 export const Relationship: React.FC = () => {
@@ -15,6 +15,8 @@ export const Relationship: React.FC = () => {
   const [type, setType] = useState<RelationshipType>('family');
   const [period, setPeriod] = useState<ContactPeriod>('weekly');
   const [closeness, setCloseness] = useState(5);
+  const [contactPurpose, setContactPurpose] = useState<ContactPurpose>('casual');
+  const [lastMeetPeriod, setLastMeetPeriod] = useState<LastMeetPeriod>('within_month');
 
   const openAddModal = () => {
     setEditingRel(null);
@@ -22,6 +24,8 @@ export const Relationship: React.FC = () => {
     setType('family');
     setPeriod('weekly');
     setCloseness(5);
+    setContactPurpose('casual');
+    setLastMeetPeriod('within_month');
     setIsModalOpen(true);
   };
 
@@ -31,6 +35,8 @@ export const Relationship: React.FC = () => {
     setType(rel.type);
     setPeriod(rel.period);
     setCloseness(rel.closeness);
+    setContactPurpose((rel.contactPurpose as ContactPurpose) || 'casual');
+    setLastMeetPeriod((rel.lastMeetPeriod as LastMeetPeriod) || 'within_month');
     setIsModalOpen(true);
   };
 
@@ -39,9 +45,9 @@ export const Relationship: React.FC = () => {
     if (!name.trim()) return;
 
     if (editingRel) {
-      updateRelationship(editingRel.id, name, type, period, closeness);
+      updateRelationship(editingRel.id, name, type, period, closeness, contactPurpose, lastMeetPeriod);
     } else {
-      addRelationship(name, type, period, closeness);
+      addRelationship(name, type, period, closeness, contactPurpose, lastMeetPeriod);
     }
     setIsModalOpen(false);
   };

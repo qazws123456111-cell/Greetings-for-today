@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
-import { Send, ArrowLeft, Share2 } from 'lucide-react';
+import { Send, ArrowLeft, Share2, Download } from 'lucide-react';
 import type { EmotionType } from '../types';
 
 interface LetterEditorProps {
@@ -15,12 +15,11 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
     state.relationships[0]?.id || ''
   );
   
-  // 감정 선택 상태 (편지 보내기 전 감정 체크)
   const [showEmotionSelect, setShowEmotionSelect] = useState(false);
-  
   const [letterText, setLetterText] = useState('');
   const [showShareModal, setShowShareModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const letterCardRef = useRef<HTMLDivElement>(null); // 🎨 이미지 저장용 ref
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -28,6 +27,97 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
   };
 
   const relationship = state.relationships.find(r => r.id === selectedRelationshipId);
+
+  // 🎨 Canvas API를 이용한 편지 이미지 저장 함수
+  const handleSaveAsImage = () => {
+    const canvas = document.createElement('canvas');
+    const W = 600;
+    const H = 420;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { showToast('⚠️ 이미지 저장을 지원하지 않는 환경입니다.'); return; }
+
+    // 1. 배경 그라디언트
+    const bgColors: Record<string, [string, string]> = {
+      'skin-night': ['#0F172A', '#1E1B4B'],
+      'skin-cherry': ['#FFF0F2', '#FFE3E8'],
+      'skin-sunset': ['#FED7AA', '#FECDD3'],
+      'default': ['#E0F2FE', '#BAE6FD'],
+    };
+    const [c1, c2] = bgColors[initialSkinId || 'default'] || bgColors['default'];
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.roundRect(0, 0, W, H, 20);
+    ctx.fill();
+
+    // 2. 테마 색상
+    const textColors: Record<string, string> = {
+      'skin-night': '#F8FAFC',
+      'skin-cherry': '#4C1D24',
+      'skin-sunset': '#7C2D12',
+      'default': '#0369A1',
+    };
+    const textColor = textColors[initialSkinId || 'default'] || textColors['default'];
+
+    // 3. 데코 텍스트
+    const decorTexts: Record<string, string> = {
+      'skin-night': '✦ 🌟 ✦ 🌌 ✦ 🌟 ✦',
+      'skin-cherry': '❀ 🌸 ❀ 🌸 ❀ 🌸 ❀',
+      'skin-sunset': '🌇 🌅 🌇 🌅 🌇 🌅',
+      'default': '☁️ 🎈 ☁️ 🎈 ☁️ 🎈',
+    };
+    ctx.font = '16px serif';
+    ctx.fillStyle = textColor;
+    ctx.globalAlpha = 0.5;
+    ctx.textAlign = 'center';
+    ctx.fillText(decorTexts[initialSkinId || 'default'] || decorTexts['default'], W / 2, 36);
+    ctx.globalAlpha = 1.0;
+
+    // 4. 수신인
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillStyle = textColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(`To. ${relationship?.name || '소중한 분'} 에게`, 40, 72);
+
+    // 5. 편지 내용 (줄바꿈 처리)
+    const bubbleX = 40, bubbleY = 90, bubbleW = W - 80, bubbleH = H - 170;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.roundRect(bubbleX, bubbleY, bubbleW, bubbleH, 12);
+    ctx.fill();
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = textColor;
+    const words = letterText || '(내용 없음)';
+    const lines: string[] = [];
+    let cur = '';
+    for (const ch of words) {
+      const test = cur + ch;
+      if (ctx.measureText(test).width > bubbleW - 32) { lines.push(cur); cur = ch; }
+      else { cur = test; }
+      if (ch === '\n') { lines.push(cur.trimEnd()); cur = ''; }
+    }
+    if (cur) lines.push(cur);
+    lines.slice(0, 12).forEach((line, i) => {
+      ctx.fillText(line, bubbleX + 16, bubbleY + 26 + i * 22);
+    });
+
+    // 6. 하단 서명
+    ctx.font = '11px sans-serif';
+    ctx.fillStyle = textColor;
+    ctx.globalAlpha = 0.6;
+    ctx.textAlign = 'right';
+    ctx.fillText(`✨ 오늘의 안부 | ${theme.badges}`, W - 40, H - 20);
+    ctx.globalAlpha = 1.0;
+
+    // 7. 다운로드 트리거
+    const link = document.createElement('a');
+    link.download = `오늘의안부_편지_${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('🎨 편지 이미지가 저장되었습니다! 카카오톡 등으로 바로 전송해 보세요.');
+  };
 
   // 스킨 테마 스타일 정의
   const getSkinStyle = () => {
@@ -192,18 +282,21 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
         </div>
 
         {/* 편지지 카드 영역 */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 'var(--radius-lg)',
-          background: theme.background,
-          border: `2px solid ${theme.borderColor}`,
-          padding: '20px',
-          boxShadow: 'var(--shadow-cozy)',
-          minHeight: '260px',
-          position: 'relative',
-          overflow: 'hidden'
-        }}>
+        <div
+          ref={letterCardRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 'var(--radius-lg)',
+            background: theme.background,
+            border: `2px solid ${theme.borderColor}`,
+            padding: '20px',
+            boxShadow: 'var(--shadow-cozy)',
+            minHeight: '260px',
+            position: 'relative',
+            overflow: 'hidden'
+          }}
+        >
           {/* 하늘 구름/별빛 데코 장식 */}
           <div style={{
             textAlign: 'center',
@@ -340,7 +433,7 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
 
             {/* 가상 모바일 공유 목업 영역 */}
             <div style={{
-              backgroundColor: '#FDE500', // 카카오톡 노랑
+              backgroundColor: '#FDE500',
               borderRadius: '16px',
               padding: '14px',
               textAlign: 'left',
@@ -352,14 +445,7 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
                 <span style={{ fontSize: '12px' }}>💬</span>
                 <span style={{ fontSize: '10px', fontWeight: 700, color: '#3C2E2A' }}>카카오톡으로 안부 전달하기</span>
               </div>
-              <div style={{
-                backgroundColor: 'white',
-                borderRadius: '10px',
-                padding: '10px',
-                fontSize: '11px',
-                color: '#3C2E2A',
-                lineHeight: '1.4'
-              }}>
+              <div style={{ backgroundColor: 'white', borderRadius: '10px', padding: '10px', fontSize: '11px', color: '#3C2E2A', lineHeight: '1.4' }}>
                 <strong>[오늘의 안부]</strong><br />
                 {letterText.length > 60 ? `${letterText.substring(0, 60)}...` : letterText}
                 <div style={{ marginTop: '6px', fontSize: '8px', color: 'var(--text-muted)' }}>
@@ -368,25 +454,39 @@ export const LetterEditor: React.FC<LetterEditorProps> = ({ initialSkinId, onClo
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="modal-btn confirm" 
-                onClick={() => {
-                  showToast('📋 편지 내용이 카카오톡 공유 클립보드에 복사되었습니다!');
-                  setTimeout(handleCloseShare, 1200);
+            {/* 버튼 3개: 이미지 저장 / 카톡 전송 / 닫기 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* 🎨 이미지로 저장 버튼 (신규!) */}
+              <button
+                onClick={handleSaveAsImage}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  backgroundColor: '#6366F1', color: 'white', border: 'none',
+                  borderRadius: '14px', padding: '12px', fontSize: '12px', fontWeight: 800,
+                  cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                  width: '100%'
                 }}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flex: 1 }}
               >
-                <Share2 size={12} />
-                카톡 전송
+                <Download size={14} />
+                🎨 이미지로 저장 (카톡 사진 전송용)
               </button>
-              <button 
-                className="modal-btn cancel" 
-                onClick={handleCloseShare}
-                style={{ flex: 1 }}
-              >
-                닫기
-              </button>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  className="modal-btn confirm"
+                  onClick={() => {
+                    showToast('📋 편지 내용이 카카오톡 공유 클립보드에 복사되었습니다!');
+                    setTimeout(handleCloseShare, 1200);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', flex: 1 }}
+                >
+                  <Share2 size={12} />
+                  카톡 전송
+                </button>
+                <button className="modal-btn cancel" onClick={handleCloseShare} style={{ flex: 1 }}>
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
         </div>

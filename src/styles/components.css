@@ -14,6 +14,11 @@
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.5px;
+  transition: opacity 0.2s ease;
+}
+
+.app-title-group:hover h1 {
+  opacity: 0.7;
 }
 
 .app-title-group p {
@@ -1026,6 +1031,18 @@
 }
 
 /* ==========================================================================
+   Ad Banner Fixed Wrapper - 스크롤 영역 분리, AdMob 정책 준수
+   탭바 위에 고정되어 어떤 스크롤에도 가려지지 않습니다.
+   ========================================================================== */
+.ad-banner-fixed-wrapper {
+  flex-shrink: 0;       /* 스크롤 영역과 완전 분리: flex 레이아웃에서 크기 유지 */
+  position: relative;   /* absolute/fixed 없이 flex flow 내 고정 위치 확보 */
+  z-index: 800;         /* 콘텐츠 위에, 탭바(900) 아래 */
+  margin: 0 0 4px 0;
+  background: transparent;
+}
+
+/* ==========================================================================
    Ad Banner Mock & Rewarded Ad Styles
    ========================================================================== */
 .ad-banner-mock {
@@ -1033,8 +1050,7 @@
   border: 1px dashed rgba(62, 56, 53, 0.15);
   border-radius: var(--radius-md);
   padding: 12px;
-  margin-top: 10px;
-  margin-bottom: 4px;
+  margin: 0;
   position: relative;
   display: flex;
   flex-direction: column;

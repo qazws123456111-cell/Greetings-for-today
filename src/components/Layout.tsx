@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
+import { AdBannerMock } from './AdBannerMock';
 import { Home, Users, BarChart3, ShoppingBag, Flame, Heart, User } from 'lucide-react';
 
 interface LayoutProps {
@@ -20,8 +21,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
       <div className="app-viewport">
         {/* 상단 통합 헤더 */}
         <header className="app-header">
-          <div className="app-title-group">
-            <h1>오늘의 안부</h1>
+          {/* 🔑 로고/타이틀 클릭 시 홈으로 이동 */}
+          <div
+            className="app-title-group"
+            onClick={() => setActiveTab('home')}
+            style={{ cursor: 'pointer' }}
+            title="홈으로 돌아가기"
+          >
+            <h1 style={{ transition: 'opacity 0.2s' }}>오늘의 안부</h1>
             <p>소중한 사람들과 따뜻한 연결</p>
           </div>
           
@@ -46,6 +53,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
         <main className="app-content">
           {children}
         </main>
+
+        {/* 🔑 광고 배너: 스크롤 영역 완전 분리 - 탭바 위 고정 레이어 */}
+        {state.currentUser && (
+          <div className="ad-banner-fixed-wrapper">
+            <AdBannerMock />
+          </div>
+        )}
 
         {/* 하단 플로팅 탭바 */}
         <nav className="app-navbar" style={{ gap: '4px' }}>
