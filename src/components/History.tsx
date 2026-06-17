@@ -2,7 +2,6 @@ import React from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
 import type { EmotionType } from '../types';
 import { BarChart3, Heart, Calendar } from 'lucide-react';
-import { AdBannerMock } from './AdBannerMock';
 
 export const History: React.FC = () => {
   const { state } = useAntigravity();
@@ -213,8 +212,6 @@ export const History: React.FC = () => {
         </div>
       </section>
 
-      {/* 하단 네이티브 배너 광고 배치 */}
-      <AdBannerMock />
     </div>
   );
 };

@@ -125,7 +125,7 @@ body {
 .app-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 16px; /* 광고 배너와 탭바는 flex 분리, 본문만 약간의 여백 */
+  padding-bottom: 170px; /* 고정 광고 배너 및 탭 바에 가려지지 않도록 충분한 여백 확보 */
   position: relative;
 }
 

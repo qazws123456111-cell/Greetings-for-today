@@ -464,17 +464,17 @@
 
 /* Relation Modal */
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   background-color: rgba(62, 56, 53, 0.4);
   backdrop-filter: blur(4px);
-  z-index: 1000;
+  z-index: 9999;
   display: flex;
   justify-content: center;
-  align-items: flex-end; /* Sliding up from bottom */
+  align-items: center;
 }
 
 .modal-content {
@@ -1035,10 +1035,12 @@
    탭바 위에 고정되어 어떤 스크롤에도 가려지지 않습니다.
    ========================================================================== */
 .ad-banner-fixed-wrapper {
-  flex-shrink: 0;       /* 스크롤 영역과 완전 분리: flex 레이아웃에서 크기 유지 */
-  position: relative;   /* absolute/fixed 없이 flex flow 내 고정 위치 확보 */
-  z-index: 800;         /* 콘텐츠 위에, 탭바(900) 아래 */
-  margin: 0 0 4px 0;
+  flex-shrink: 0;
+  position: absolute;
+  bottom: 84px;
+  left: 16px;
+  right: 16px;
+  z-index: 800;
   background: transparent;
 }
 
@@ -1101,13 +1103,13 @@
 
 /* Rewarded Ad Simulator Modal */
 .ad-player-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.8);
-  z-index: 2000;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.85);
+  z-index: 9999;
   display: flex;
   justify-content: center;
   align-items: center;

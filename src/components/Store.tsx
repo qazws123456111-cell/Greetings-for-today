@@ -1,10 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
 import type { RewardItem } from '../types';
 import { ShoppingBag, Lock, Award, Sparkles, Check } from 'lucide-react';
 import { OniCharacter } from './OniCharacter';
 
-export const Store: React.FC = () => {
+interface StoreProps {
+  onRequestAd: (
+    type: 'refresh_quest' | 'refresh_all' | 'charge_points',
+    onComplete: () => void,
+    questId?: string
+  ) => void;
+}
+
+export const Store: React.FC<StoreProps> = ({ onRequestAd }) => {
   const { state, purchaseReward, addPoints, toggleEquipItem, equipSkin, watchAdForPoints } = useAntigravity();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [shakeId, setShakeId] = useState<string | null>(null);
@@ -14,36 +22,6 @@ export const Store: React.FC = () => {
   
   // 히든 이벤트 해금 여부
   const [showHiddenModal, setShowHiddenModal] = useState(false);
-
-  // 보상형 광고 시뮬레이터 관련 상태
-  const [showAdPrompt, setShowAdPrompt] = useState(false);
-  const [showAdPlayer, setShowAdPlayer] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(5);
-  const [adProgress, setAdProgress] = useState(0);
-
-  // 보상형 광고 재생 타이머 처리
-  useEffect(() => {
-    let interval: any;
-    if (showAdPlayer) {
-      setAdCountdown(5);
-      setAdProgress(0);
-      interval = setInterval(() => {
-        setAdCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setAdProgress(100);
-            return 0;
-          }
-          const nextVal = prev - 1;
-          setAdProgress((5 - nextVal) * 20);
-          return nextVal;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [showAdPlayer]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -92,17 +70,14 @@ export const Store: React.FC = () => {
       showToast("🚫 오늘의 광고 충전 제한(5회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
       return;
     }
-    setShowAdPrompt(true);
-  };
-
-  const handleCompleteAdPointsReward = () => {
-    setShowAdPlayer(false);
-    const res = watchAdForPoints();
-    if (res.success) {
-      showToast(`🎬 광고 시청 보상 +5xp 획득 완료! (오늘 남은 횟수: ${5 - res.count}회)`);
-    } else {
-      showToast("🚫 오늘의 광고 시청 제한 횟수를 초과했습니다.");
-    }
+    onRequestAd('charge_points', () => {
+      const res = watchAdForPoints();
+      if (res.success) {
+        showToast(`🎬 광고 시청 보상 +5xp 획득 완료! (오늘 남은 횟수: ${5 - res.count}회)`);
+      } else {
+        showToast("🚫 오늘의 광고 시청 제한 횟수를 초과했습니다.");
+      }
+    });
   };
 
   const handleDebugAddPoints = () => {
@@ -454,81 +429,6 @@ export const Store: React.FC = () => {
         </div>
       )}
 
-      {/* 1. 광고 안내 팝업 모달 */}
-      {showAdPrompt && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-content" style={{ borderRadius: '28px', maxWidth: '340px', margin: 'auto', padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🎬</div>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>무료 포인트 충전</h3>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
-              후원사 광고를 잠시 시청하시겠습니까?<br />
-              시청 완료 시 보상으로 <strong>+5xp</strong>가 적립됩니다! (오늘 남은 횟수: {5 - (state.dailyAdChargeCount || 0)}회)
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="modal-btn confirm" 
-                onClick={() => {
-                  setShowAdPrompt(false);
-                  setShowAdPlayer(true);
-                }}
-              >
-                광고 시청하기
-              </button>
-              <button 
-                className="modal-btn cancel" 
-                onClick={() => {
-                  setShowAdPrompt(false);
-                }}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. 가상 광고 플레이어 오버레이 */}
-      {showAdPlayer && (
-        <div className="ad-player-overlay" style={{ zIndex: 1001 }}>
-          <div className="ad-player-container">
-            <div className="ad-player-header">
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#AFA6A1' }}>추천 스폰서십 광고</span>
-              <span className="ad-player-timer">{adCountdown > 0 ? `남은 시간: ${adCountdown}초` : '시청 완료'}</span>
-            </div>
-
-            <div className="ad-player-video-box">
-              <div className="ad-player-video-icon">☕</div>
-              <h4 className="ad-player-video-title">향기로운 하루의 시작, 모닝 브루 커피</h4>
-              <p className="ad-player-video-desc">
-                "지친 일상에 깊고 풍부한 원두의 맛을 선사합니다. 지금 가까운 편의점에서 만나보세요."
-              </p>
-            </div>
-
-            <div className="ad-player-progress-bar">
-              <div className="ad-player-progress-fill" style={{ width: `${adProgress}%`, transition: 'width 1s linear' }} />
-            </div>
-
-            <div className="ad-player-footer">
-              <span className="ad-player-reward-text">
-                {adCountdown > 0 ? "광고 시청 완료 후 보상 포인트가 지급됩니다..." : "시청이 완료되었습니다! 닫기를 누르세요."}
-              </span>
-              <button 
-                className={`modal-btn confirm ${adCountdown > 0 ? 'disabled' : ''}`}
-                disabled={adCountdown > 0}
-                onClick={handleCompleteAdPointsReward}
-                style={{ 
-                  backgroundColor: adCountdown > 0 ? '#4C4441' : 'var(--gold)', 
-                  color: adCountdown > 0 ? '#AFA6A1' : '#2B2523',
-                  boxShadow: adCountdown > 0 ? 'none' : '0 4px 10px rgba(255, 210, 90, 0.3)',
-                  cursor: adCountdown > 0 ? 'default' : 'pointer'
-                }}
-              >
-                광고 닫고 보상 받기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cozy Toast */}
       {toastMessage && (

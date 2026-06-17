@@ -1,27 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAntigravity } from '../store/AntigravityStore';
 import type { Quest } from '../types';
 import { RefreshCw, Copy, ExternalLink, Calendar } from 'lucide-react';
 import { OniCharacter } from './OniCharacter';
-import { AdBannerMock } from './AdBannerMock';
 
 interface DashboardProps {
   onStartQuestAction: (quest: Quest, actionType: 'template' | 'custom') => void;
+  onRequestAd: (
+    type: 'refresh_quest' | 'refresh_all' | 'charge_points',
+    onComplete: () => void,
+    questId?: string
+  ) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction, onRequestAd }) => {
   const { state, watchAdForRefresh } = useAntigravity();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [refreshingQuestId, setRefreshingQuestId] = useState<string | null>(null);
-
-  // 보상형 광고 시뮬레이터 관련 상태
-  const [showAdPrompt, setShowAdPrompt] = useState(false);
-  const [showAdPlayer, setShowAdPlayer] = useState(false);
-  const [adCountdown, setAdCountdown] = useState(5);
-  const [adProgress, setAdProgress] = useState(0);
-  const [pendingRefreshAction, setPendingRefreshAction] = useState<'single' | 'all' | null>(null);
-  const [pendingQuestId, setPendingQuestId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -29,30 +25,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
       setToastMessage(null);
     }, 2500);
   };
-
-  // 보상형 광고 재생 타이머 처리
-  useEffect(() => {
-    let interval: any;
-    if (showAdPlayer) {
-      setAdCountdown(5);
-      setAdProgress(0);
-      interval = setInterval(() => {
-        setAdCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setAdProgress(100);
-            return 0;
-          }
-          const nextVal = prev - 1;
-          setAdProgress((5 - nextVal) * 20);
-          return nextVal;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [showAdPlayer]);
 
   const handleCopyAndCall = (quest: Quest) => {
     navigator.clipboard.writeText(quest.templateMessage)
@@ -71,42 +43,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
     onStartQuestAction(quest, 'custom');
   };
 
-  // 개별 새로고침 클릭 -> 광고 프롬프트 표시
+  // 개별 새로고침 클릭
   const handleRefreshQuestClick = (questId: string) => {
     if ((state.dailyQuestRefreshCount || 0) >= 3) {
       showToast("🚫 오늘의 새로고침 광고 제한(3회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
       return;
     }
-    setPendingRefreshAction('single');
-    setPendingQuestId(questId);
-    setShowAdPrompt(true);
-  };
-
-  // 전체 새로고침 클릭 -> 광고 프롬프트 표시
-  const handleRefreshAllClick = () => {
-    if ((state.dailyFullRefreshCount || 0) >= 2) {
-      showToast("🚫 오늘의 전체 새로고침 광고 제한(2회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
-      return;
-    }
-    setPendingRefreshAction('all');
-    setPendingQuestId(null);
-    setShowAdPrompt(true);
-  };
-
-  // 광고 완료 및 보상 처리
-  const handleCompleteAdReward = async () => {
-    setShowAdPlayer(false);
-
-    if (pendingRefreshAction === 'single' && pendingQuestId) {
-      setRefreshingQuestId(pendingQuestId);
-      const res = await watchAdForRefresh(pendingQuestId);
+    onRequestAd('refresh_quest', async () => {
+      setRefreshingQuestId(questId);
+      const res = await watchAdForRefresh(questId);
       setRefreshingQuestId(null);
       if (res.success) {
         showToast(`✨ 광고 시청 보상 +2pt 적립 & 새로운 안부 추천 완료! (오늘 낱개 남은 횟수: ${3 - res.count}회)`);
       } else {
         showToast("🚫 낱개 새로고침 제한(하루 3회)을 초과했습니다.");
       }
-    } else if (pendingRefreshAction === 'all') {
+    }, questId);
+  };
+
+  // 전체 새로고침 클릭
+  const handleRefreshAllClick = () => {
+    if ((state.dailyFullRefreshCount || 0) >= 2) {
+      showToast("🚫 오늘의 전체 새로고침 광고 제한(2회)을 모두 소모하셨습니다. 내일 다시 참여해 주세요!");
+      return;
+    }
+    onRequestAd('refresh_all', async () => {
       setIsRefreshingAll(true);
       const res = await watchAdForRefresh();
       setIsRefreshingAll(false);
@@ -115,10 +76,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
       } else {
         showToast("🚫 전체 새로고침 제한(하루 2회)을 초과했습니다.");
       }
-    }
-
-    setPendingRefreshAction(null);
-    setPendingQuestId(null);
+    });
   };
 
   const pendingQuests = state.quests.filter(q => q.status === 'pending');
@@ -234,94 +192,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
         )}
       </div>
 
-      {/* 하단 네이티브 배너 광고 배치 */}
-      <AdBannerMock />
-
-      {/* 1. 광고 안내 팝업 모달 */}
-      {showAdPrompt && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-content" style={{ borderRadius: '28px', maxWidth: '340px', margin: 'auto', padding: '24px', textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>
-              {pendingRefreshAction === 'all' ? '🌟' : '🎬'}
-            </div>
-            <h3 style={{ fontSize: '15px', fontWeight: 800, marginBottom: '6px' }}>
-              {pendingRefreshAction === 'all' ? '오늘의 안부 전체 새로 받기' : '새로운 퀘스트 불러오기'}
-            </h3>
-            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '18px' }}>
-              후원사 광고를 잠시 시청하시겠습니까?<br />
-              {pendingRefreshAction === 'all' ? (
-                <>시청 완료 시 퀘스트 판이 전부 갱신되고 보상으로 <strong>+5pt</strong>가 적립됩니다! (오늘 남은 횟수: {2 - (state.dailyFullRefreshCount || 0)}회)</>
-              ) : (
-                <>시청 완료 시 퀘스트가 갱신되고 보상으로 <strong>+2pt</strong>가 적립됩니다! (오늘 남은 횟수: {3 - (state.dailyQuestRefreshCount || 0)}회)</>
-              )}
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button 
-                className="modal-btn confirm" 
-                onClick={() => {
-                  setShowAdPrompt(false);
-                  setShowAdPlayer(true);
-                }}
-              >
-                광고 시청하기
-              </button>
-              <button 
-                className="modal-btn cancel" 
-                onClick={() => {
-                  setShowAdPrompt(false);
-                  setPendingRefreshAction(null);
-                  setPendingQuestId(null);
-                }}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. 가상 광고 플레이어 오버레이 */}
-      {showAdPlayer && (
-        <div className="ad-player-overlay">
-          <div className="ad-player-container">
-            <div className="ad-player-header">
-              <span style={{ fontSize: '10px', fontWeight: 700, color: '#AFA6A1' }}>추천 스폰서십 광고</span>
-              <span className="ad-player-timer">{adCountdown > 0 ? `남은 시간: ${adCountdown}초` : '시청 완료'}</span>
-            </div>
-
-            <div className="ad-player-video-box">
-              <div className="ad-player-video-icon">🍵</div>
-              <h4 className="ad-player-video-title">따뜻함을 나누는 차 한 잔, 온기차</h4>
-              <p className="ad-player-video-desc">
-                "소중한 사람과의 대화에 온기를 채워보세요. 100% 유기농 잎차로 정성껏 우려냅니다."
-              </p>
-            </div>
-
-            <div className="ad-player-progress-bar">
-              <div className="ad-player-progress-fill" style={{ width: `${adProgress}%`, transition: 'width 1s linear' }} />
-            </div>
-
-            <div className="ad-player-footer">
-              <span className="ad-player-reward-text">
-                {adCountdown > 0 ? "광고 시청 완료 후 보상 포인트가 지급됩니다..." : "시청이 완료되었습니다! 닫기를 누르세요."}
-              </span>
-              <button 
-                className={`modal-btn confirm ${adCountdown > 0 ? 'disabled' : ''}`}
-                disabled={adCountdown > 0}
-                onClick={handleCompleteAdReward}
-                style={{ 
-                  backgroundColor: adCountdown > 0 ? '#4C4441' : 'var(--gold)', 
-                  color: adCountdown > 0 ? '#AFA6A1' : '#2B2523',
-                  boxShadow: adCountdown > 0 ? 'none' : '0 4px 10px rgba(255, 210, 90, 0.3)',
-                  cursor: adCountdown > 0 ? 'default' : 'pointer'
-                }}
-              >
-                광고 닫고 보상 받기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Cozy Toast */}
       {toastMessage && (
