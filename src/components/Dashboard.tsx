@@ -133,8 +133,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onStartQuestAction }) => {
             <div className="oni-speech-title">
               <span>🧚‍♀️ 안부 요정 온이</span>
             </div>
-            {state.streak > 0 
-              ? `연속 안부 ${state.streak}일째 실천 중이네요! 오늘 누구에게 온기를 나누어 볼까요?`
+            {state.currentDay > 0 
+              ? `연속 안부 ${state.currentDay}일째 실천 중이네요! 오늘 누구에게 온기를 나누어 볼까요?`
               : "안부는 관계의 온도계입니다. 오랜만에 소중한 사람에게 한마디 건네볼까요?"}
           </div>
         </div>

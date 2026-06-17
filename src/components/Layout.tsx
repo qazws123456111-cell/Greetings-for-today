@@ -37,7 +37,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, setActiveTa
               {/* 스트릭 뱃지 */}
               <div className="status-badge streak" title="연속 안부 실천 스트릭!">
                 <Flame size={14} fill="#FF5A5A" stroke="none" />
-                <span>{state.streak}일</span>
+                <span>{state.currentDay}일</span>
               </div>
               
               {/* 포인트 뱃지 */}
